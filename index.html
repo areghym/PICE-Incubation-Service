@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incubation Service</title>
+    <!-- Load Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind Custom Configuration for branding colors
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'linkedin-blue': '#0a66c2',
+                        'primary-dark': '#1f2937',
+                        'text-dark': '#1f2937',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom CSS to apply the frosted glass effect */
+        .frosted-glass {
+            backdrop-filter: blur(15px) saturate(180%);
+            -webkit-backdrop-filter: blur(15px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+        
+        /* Styles for the Website Frame */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            color: #1f2937; 
+            overflow-x: hidden; 
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f9fc; /* Fallback color */
+        }
+
+        /* Full Background Image */
+        .background-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -10; /* Move to background */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-image: url('1.jpg-aa0e0ec0-f497-4b85-8494-f5045f0977ed');
+        }
+
+        /* Content Area - Now responsive and flowing */
+        .page-container {
+            padding-top: 5rem; /* Space for fixed header */
+            width: 100%;
+            max-width: 1400px; /* Maximize readability on huge screens */
+            margin: 0 auto; /* Center the main container */
+        }
+        
+        /* Main Section Styling */
+        .main-section { 
+            padding: 4rem 1rem; /* Generous vertical padding */
+            scroll-margin-top: 5rem; /* Offset for sticky header when linking */
+        }
+
+        /* Responsive Card Container */
+        .responsive-card {
+            max-width: 90%;
+            margin: 0 auto;
+            padding: 2rem;
+            max-width: 1000px;
+        }
+
+        /* Sticky Header Z-index */
+        #main-header {
+            z-index: 50;
+        }
+
+        /* Modal specific styling */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 1. FULL PAGE FIXED BACKGROUND IMAGE -->
+    <div class="background-image"></div>
+    
+    <!-- Message Box for Alerts (Replaces alert()) -->
+    <div id="message-box" class="fixed top-4 right-4 z-[100] transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-red-600 text-white p-4 rounded-xl shadow-2xl font-semibold flex items-center space-x-2 min-w-[250px]">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.398 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span id="message-text"></span>
+        </div>
+    </div>
+    
+    <!-- Sign In/Sign Up Modal -->
+    <div id="auth-modal" class="modal fixed inset-0 z-[100] flex items-center justify-center">
+        <div class="bg-white/90 frosted-glass p-8 rounded-3xl shadow-2xl max-w-md w-full mx-4">
+            <h3 class="text-3xl font-bold text-linkedin-blue mb-4">Sign In (or Register)</h3>
+            <p class="text-gray-700 mb-6">Enter your details to manage your founder profile. This action sets your identity for the platform.</p>
+            <form id="auth-form" class="space-y-4">
+                <input type="email" id="auth-email" placeholder="Email Address (Used for identification)" required class="w-full border-gray-300 rounded-xl shadow-sm p-3 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                <input type="text" id="auth-name" placeholder="Founder Name" required class="w-full border-gray-300 rounded-xl shadow-sm p-3 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                <button type="submit" class="w-full bg-linkedin-blue hover:bg-primary-dark text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg text-lg">
+                    Confirm Identity
+                </button>
+            </form>
+            <button onclick="document.getElementById('auth-modal').style.display='none'" class="mt-4 w-full text-gray-600 hover:text-primary-dark transition duration-300 text-sm">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+
+    <!-- 2. STICKY TOP NAVIGATION BAR -->
+    <header id="main-header" class="fixed top-0 left-0 w-full h-20 bg-white/70 frosted-glass flex items-center px-4 md:px-10 shadow-lg">
+        <!-- Logo and Title -->
+        <a href="#home" class="flex items-center space-x-3 text-2xl font-extrabold text-primary-dark tracking-tight hover:text-linkedin-blue transition duration-300">
+            <svg class="w-8 h-8 text-white p-1 bg-linkedin-blue rounded-full shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
+            <span class="hidden sm:inline">Incubation Service</span>
+            <span class="sm:hidden">PI Portal</span>
+        </a>
+
+        <!-- Navigation Links -->
+        <nav class="hidden md:flex flex-grow justify-center space-x-8 text-lg font-medium">
+            <a href="#home" class="text-text-dark hover:text-linkedin-blue transition duration-200">Home</a>
+            <a href="#services" class="text-text-dark hover:text-linkedin-blue transition duration-200">Programs</a>
+            <a href="#application" class="text-text-dark hover:text-linkedin-blue transition duration-200">Apply</a>
+            <a href="#incubation" class="text-text-dark hover:text-linkedin-blue transition duration-200">Incubation</a>
+            <a href="#profile" class="text-text-dark hover:text-linkedin-blue transition duration-200">Profile</a>
+            <a href="#contact" class="text-text-dark hover:text-linkedin-blue transition duration-200">Contact</a>
+        </nav>
+
+        <!-- Auth Status and Action Button -->
+        <div id="auth-controls" class="ml-auto flex items-center space-x-4">
+            <span id="auth-status" class="text-sm font-semibold text-gray-600 hidden md:block">Loading...</span>
+            <button id="auth-button" class="bg-linkedin-blue hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-full text-base shadow-xl transition duration-300 transform hover:scale-[1.05]" onclick="openAuthModal()">
+                Sign In
+            </button>
+        </div>
+    </header>
+
+    <!-- 3. MAIN CONTENT CONTAINER -->
+    <main class="page-container">
+
+        <!-- HOME SECTION -->
+        <section id="home" class="main-section">
+            <div class="responsive-card bg-white/70 frosted-glass rounded-[2rem] shadow-2xl">
+                <h1 class="text-5xl lg:text-6xl font-extrabold text-text-dark leading-tight tracking-tighter mb-6">
+                    Fueling <span class="text-linkedin-blue">Innovation</span> <br class="sm:hidden"> for Tomorrow's Leaders
+                </h1>
+                <p class="text-xl text-gray-700 font-light mb-8 max-w-3xl">
+                    Empowering startups and innovators with mentorship, workspace, training, and access to markets. Join us to turn your ideas into impactful businesses. 
+                </p>
+                
+                <a href="#incubation" class="inline-block bg-linkedin-blue hover:bg-linkedin-blue/90 text-white font-bold py-4 px-10 rounded-xl shadow-lg transition duration-300 transform hover:scale-[1.01] text-lg">
+                    Manage Your Progress
+                </a>
+                
+                <div class="mt-12 pt-8 border-t border-gray-300 grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div><span class="text-linkedin-blue text-4xl mb-2 block">🚀</span><h2 class="text-2xl font-bold text-text-dark mb-2">Structured Strategy</h2><p class="text-gray-700">Market validation, clear business planning, and product-market fit analysis.</p></div>
+                    <div><span class="text-linkedin-blue text-4xl mb-2 block">🤝</span><h2 class="text-2xl font-bold text-text-dark mb-2">Elite Network Access</h2><p class="text-gray-700">Direct connections to investors, VCs, and influential industry leaders.</p></div>
+                    <div><span class="text-linkedin-blue text-4xl mb-2 block">✅</span><h2 class="text-2xl font-bold text-text-dark mb-2">Measurable Results</h2><p class="text-gray-700">Proven framework for securing follow-on investment and scaling operations.</p></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SERVICES SECTION -->
+        <section id="services" class="main-section bg-white/50">
+            <div class="responsive-card">
+                <h2 class="text-4xl font-extrabold text-primary-dark mb-8 border-b-4 border-linkedin-blue pb-4">Our Incubation Tracks</h2>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="p-6 bg-white/90 frosted-glass rounded-3xl shadow-2xl">
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-2">Pre-Incubation</h3>
+                        <p class="text-gray-600">0-3 Months. Focus: Idea Validation & MVP Definition.</p>
+                    </div>
+                    <div class="p-6 bg-white/90 frosted-glass rounded-3xl shadow-2xl">
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-2">Incubation</h3>
+                        <p class="text-gray-600">6-12 Months. Focus: Scaling, Acquisition, & Seed Funding.</p>
+                    </div>
+                    <div class="p-6 bg-white/90 frosted-glass rounded-3xl shadow-2xl">
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-2">Post-Incubation</h3>
+                        <p class="text-gray-600">Alumni Status. Focus: Long-term Growth & Network Support.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- INCUBATION DASHBOARD SECTION -->
+        <section id="incubation" class="main-section">
+            <div class="responsive-card bg-white/70 frosted-glass rounded-[2rem] shadow-2xl">
+                <h2 class="text-4xl font-extrabold text-primary-dark mb-8 border-b-4 border-linkedin-blue pb-4">Incubation Progress & Reporting</h2>
+
+                <!-- Status Panel -->
+                <div class="p-6 bg-white rounded-xl shadow-lg mb-8 border-l-4 border-linkedin-blue">
+                    <h3 class="text-2xl font-bold text-primary-dark mb-2">Your Current Status</h3>
+                    <div class="flex items-center justify-between flex-wrap">
+                        <span id="current-incubation-status" class="text-4xl font-extrabold text-linkedin-blue">Loading...</span>
+                        <div id="status-request-area" class="mt-4 md:mt-0 flex flex-col items-end">
+                            <button id="request-level-up-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-full shadow-md transition duration-300 hidden">
+                                Request Level Up to <span id="next-status-text">...</span>
+                            </button>
+                            <span id="request-pending-text" class="text-orange-500 font-semibold mt-2 hidden">Request Pending Admin Review...</span>
+                        </div>
+                    </div>
+                     <!-- ADMIN SIMULATION (only for demonstration) -->
+                    <button id="admin-approve-btn" class="mt-4 bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-4 rounded-full shadow-lg transition duration-300" title="Simulates Admin approving your request. Only visible for testing.">
+                        [Simulated Admin] Click to Approve Level Up
+                    </button>
+                </div>
+                
+                <!-- Progress Report Form -->
+                <h3 class="text-2xl font-bold text-primary-dark mt-10 mb-4">Submit Quarterly Progress Report</h3>
+                <form id="progress-report-form" class="space-y-4 p-6 bg-white/90 rounded-xl shadow-inner">
+                    <input type="text" id="report-period" placeholder="Reporting Period (e.g., Q2 2025)" required class="w-full border-gray-300 rounded-xl shadow-sm p-3 text-base focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30">
+                    <textarea id="report-summary" rows="3" placeholder="Summary of Progress & Traction" required class="w-full border-gray-300 rounded-xl shadow-sm p-3 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30"></textarea>
+                    <textarea id="report-milestones" rows="3" placeholder="Key Milestones Achieved (e.g., 500 users, secured $50k funding)" required class="w-full border-gray-300 rounded-xl shadow-sm p-3 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30"></textarea>
+                    <textarea id="report-challenges" rows="3" placeholder="Challenges Encountered & Support Needed" class="w-full border-gray-300 rounded-xl shadow-sm p-3 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30"></textarea>
+                    
+                    <button type="submit" class="w-full bg-linkedin-blue hover:bg-primary-dark text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg text-lg mt-6">
+                        Submit Report
+                    </button>
+                </form>
+
+                <!-- Report History (Placeholder to list submitted reports) -->
+                <h3 class="text-2xl font-bold text-primary-dark mt-10 mb-4">Report History</h3>
+                <div id="reports-list" class="space-y-4 text-gray-700">
+                    <p class="text-center italic text-gray-500">No reports found for this user.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- APPLICATION SECTION -->
+        <section id="application" class="main-section bg-white/50">
+            <div class="responsive-card">
+                <h2 class="text-4xl font-extrabold text-primary-dark mb-8 border-b-4 border-linkedin-blue pb-4">Submit Your Application</h2>
+                <p class="text-lg text-gray-700 mb-8">Current cycle closes on October 30th. Please ensure your profile is updated before applying.</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    <div>
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-4">Application Form</h3>
+                        <form id="application-form" class="space-y-4">
+                            <input type="text" id="app-company" placeholder="Startup Name" required class="w-full border-gray-300 rounded-xl shadow-sm p-4 text-base focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                            <label for="plan" class="block text-sm font-medium text-text-dark pt-2">Upload Business Plan (PDF/DOCX - Max 5MB)</label>
+                            <input type="file" id="app-plan" name="plan" required class="w-full text-gray-700 p-4 border border-gray-300 rounded-xl bg-white/90">
+                            
+                            <button type="submit" class="w-full bg-linkedin-blue hover:bg-primary-dark text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg text-lg mt-6">
+                                Submit Application
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="lg:border-l lg:border-gray-300 lg:pl-10 pt-8 lg:pt-0">
+                        <h3 class="text-2xl font-bold text-primary-dark mb-4">Track Status</h3>
+                        <p class="text-gray-600 mb-4 text-sm">Use the Application ID provided in your submission confirmation email.</p>
+                        <div class="flex space-x-2">
+                            <input type="text" id="app-id" placeholder="Enter App ID (e.g., INCUB-1001)" class="flex-grow border-gray-300 rounded-xl shadow-sm p-3 text-base focus:border-linkedin-blue focus:ring-2 bg-white/90">
+                            <button id="track-status-btn" class="bg-primary-dark hover:bg-linkedin-blue text-white font-bold py-3 px-6 rounded-xl shadow-md text-base transition duration-300">
+                                Check
+                            </button>
+                        </div>
+                        <div id="status-result" class="mt-6 p-4 text-base bg-linkedin-blue/10 rounded-xl border border-linkedin-blue/30 text-gray-800 font-medium hidden">
+                            <!-- Status updates will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- PROFILE SECTION -->
+        <section id="profile" class="main-section">
+            <div class="responsive-card bg-white/70 frosted-glass rounded-[2rem] shadow-2xl">
+                <h2 class="text-4xl font-extrabold text-primary-dark mb-8 border-b-4 border-linkedin-blue pb-4">Founder Profile</h2>
+                <div class="p-8">
+                    <p class="text-sm font-mono text-gray-500 mb-6">
+                        Your Unique User ID (Required for shared apps): <span id="current-user-id" class="text-primary-dark font-bold break-all"></span>
+                    </p>
+                    <h3 class="text-2xl font-bold text-linkedin-blue mb-4">Manage Incubate Details</h3>
+                    <form id="profile-form" class="space-y-4">
+                        <input type="email" id="profile-email" placeholder="Email Address" disabled class="w-full border-gray-300 rounded-xl shadow-sm p-4 text-base bg-gray-100 cursor-not-allowed">
+                        <input type="text" id="profile-name" placeholder="Founder Name" class="w-full border-gray-300 rounded-xl shadow-sm p-4 text-base focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                        <input type="text" id="profile-company" placeholder="Startup Name (e.g., Bamboo Labs)" class="w-full border-gray-300 rounded-xl shadow-sm p-4 text-base focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                        <textarea id="profile-bio" rows="4" placeholder="Brief Bio / Startup Mission Statement" class="w-full border-gray-300 rounded-xl shadow-sm p-4 text-base focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90"></textarea>
+                        
+                        <button type="submit" id="profile-save-btn" class="w-full bg-primary-dark hover:bg-linkedin-blue text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg text-lg">
+                            Save Profile Updates
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTACT SECTION -->
+        <section id="contact" class="main-section bg-white/50">
+            <div class="responsive-card">
+                <h2 class="text-4xl font-extrabold text-primary-dark mb-8 border-b-4 border-linkedin-blue pb-4">Contact Our Team</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div>
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-4">Reach Out Directly</h3>
+                        <div class="space-y-4 text-lg text-gray-800 p-4 bg-white/80 rounded-xl shadow-sm">
+                            <p class="flex items-center"><span class="text-linkedin-blue text-2xl mr-3">📍</span> <span class="font-semibold">HQ:</span> Incubation Center, Lideta 15/16/17, Addis Ababa</p>
+                            <p class="flex items-center"><span class="text-linkedin-blue text-2xl mr-3">📧</span> <span class="font-semibold">Email:</span> pice.incubation@gmail.com</p>
+                            <p class="flex items-center"><span class="text-linkedin-blue text-2xl mr-3">📞</span> <span class="font-semibold">Phone:</span> +251-115-517-839</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-2xl font-bold text-linkedin-blue mb-4">Send a Message</h3>
+                        <form id="contact-form" class="space-y-4">
+                            <input type="text" id="c-name" placeholder="Your Name" required class="w-full border-gray-300 rounded-xl shadow-sm p-4 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                            <input type="email" id="c-email" placeholder="Your Email" required class="w-full border-gray-300 rounded-xl shadow-sm p-4 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90">
+                            <textarea id="c-message" rows="5" placeholder="Your Message..." required class="w-full border-gray-300 rounded-xl shadow-sm p-4 focus:border-linkedin-blue focus:ring-2 focus:ring-linkedin-blue/30 bg-white/90"></textarea>
+                            
+                            <button type="submit" class="w-full bg-primary-dark hover:bg-linkedin-blue text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg text-lg">
+                                Submit Inquiry
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="w-full py-8 mt-12 bg-primary-dark/90 text-white text-center">
+            <p class="text-sm">&copy; 2025 Incubation Platform. All rights reserved.</p>
+        </footer>
+
+    </main> <!-- End Main Content Container -->
+
+    <!-- JavaScript for Firebase, Navigation and Interactivity -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged, 
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            onSnapshot,
+            collection,
+            addDoc,
+            query,
+            orderBy,
+            getDocs,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set Firebase Log Level to Debug
+        setLogLevel('Debug');
+
+        // Global Firebase Variables (Mandatory usage)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        let app, db, auth;
+        let currentUserId = null;
+        let profileData = {};
+
+        // Define Incubation Statuses
+        const STATUSES = ["Pre-incubation", "Incubation", "Post-incubation", "Alumni"];
+        const NEXT_STATUS_MAP = {
+            "Pre-incubation": "Incubation",
+            "Incubation": "Post-incubation",
+            "Post-incubation": "Alumni",
+            "Alumni": "Alumni"
+        };
+
+
+        // --- Utility Functions ---
+
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+
+        const showAlert = (message, isError = false) => {
+            messageText.textContent = message;
+            messageBox.classList.remove('opacity-0', 'pointer-events-none', 'bg-red-600', 'bg-green-600');
+            messageBox.classList.add('opacity-100');
+            
+            if (isError) {
+                messageBox.classList.add('bg-red-600');
+                messageBox.classList.remove('bg-green-600');
+            } else {
+                messageBox.classList.add('bg-green-600');
+                messageBox.classList.remove('bg-red-600');
+            }
+
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                messageBox.classList.add('opacity-0', 'pointer-events-none');
+            }, 5000);
+        };
+        window.showAlert = showAlert; 
+
+        window.openAuthModal = () => {
+            if (currentUserId && !auth.currentUser.isAnonymous) {
+                handleSignOut();
+            } else {
+                document.getElementById('auth-modal').style.display = 'flex';
+            }
+        };
+
+        // --- Firebase Document References ---
+
+        const getProfileDocRef = (userId) => {
+            return doc(db, `artifacts/${appId}/users/${userId}/profiles/myProfile`);
+        };
+        
+        const getReportsCollectionRef = (userId) => {
+            return collection(db, `artifacts/${appId}/users/${userId}/progressReports`);
+        };
+
+        // --- UI Update and Rendering ---
+        
+        const updateIncubationUI = () => {
+            const statusEl = document.getElementById('current-incubation-status');
+            const requestBtn = document.getElementById('request-level-up-btn');
+            const nextStatusTextEl = document.getElementById('next-status-text');
+            const pendingTextEl = document.getElementById('request-pending-text');
+            const adminBtn = document.getElementById('admin-approve-btn');
+
+            const currentStatus = profileData.incubationStatus || STATUSES[0];
+            const nextStatus = NEXT_STATUS_MAP[currentStatus];
+            const isRequestPending = profileData.statusChangeRequested || false;
+
+            statusEl.textContent = currentStatus;
+            
+            if (currentStatus === 'Alumni') {
+                requestBtn.classList.add('hidden');
+                pendingTextEl.textContent = 'Congratulations, you are Alumni!';
+                pendingTextEl.classList.remove('hidden', 'text-orange-500');
+                pendingTextEl.classList.add('text-green-600');
+                adminBtn.classList.add('hidden');
+            } else {
+                nextStatusTextEl.textContent = nextStatus;
+                
+                if (isRequestPending) {
+                    requestBtn.classList.add('hidden');
+                    pendingTextEl.classList.remove('hidden');
+                    adminBtn.classList.remove('hidden');
+                } else {
+                    requestBtn.classList.remove('hidden');
+                    pendingTextEl.classList.add('hidden');
+                    adminBtn.classList.add('hidden');
+                }
+            }
+        };
+        
+        const renderReports = (reports) => {
+            const reportsListEl = document.getElementById('reports-list');
+            reportsListEl.innerHTML = ''; 
+
+            if (reports.length === 0) {
+                 reportsListEl.innerHTML = '<p class="text-center italic text-gray-500">No reports found for this user. Submit your first one!</p>';
+                 return;
+            }
+            
+            reports.forEach(report => {
+                const date = new Date(report.submittedAt).toLocaleDateString();
+                const reportDiv = document.createElement('div');
+                reportDiv.className = 'p-4 bg-white rounded-xl shadow-sm border-l-4 border-primary-dark';
+                reportDiv.innerHTML = `
+                    <h4 class="font-bold text-lg text-primary-dark">${report.period} Report</h4>
+                    <p class="text-sm text-gray-500 mb-2">Submitted: ${date} | Status: <span class="font-semibold text-linkedin-blue">${report.currentStatus}</span></p>
+                    <p class="text-sm"><strong>Summary:</strong> ${report.summary}</p>
+                    <p class="text-sm"><strong>Milestones:</strong> ${report.milestonesAchieved}</p>
+                `;
+                reportsListEl.appendChild(reportDiv);
+            });
+        };
+
+
+        // --- Real-time Listeners ---
+
+        const listenToProfile = (userId) => {
+            if (!userId) return;
+            const profileRef = getProfileDocRef(userId);
+
+            onSnapshot(profileRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    profileData = docSnap.data();
+                    
+                    // Set default status if missing
+                    if (!profileData.incubationStatus) {
+                        profileData.incubationStatus = STATUSES[0];
+                        // Optionally save this default status immediately
+                        setDoc(profileRef, { incubationStatus: STATUSES[0] }, { merge: true });
+                    }
+                    
+                    document.getElementById('profile-email').value = profileData.email || auth.currentUser.email || '';
+                    document.getElementById('profile-name').value = profileData.name || '';
+                    document.getElementById('profile-company').value = profileData.company || '';
+                    document.getElementById('profile-bio').value = profileData.bio || '';
+                    
+                    updateIncubationUI();
+                    showAlert("Profile and Incubation Status loaded.", false);
+                } else {
+                    // Profile document doesn't exist yet, initialize fields
+                    profileData = {
+                        email: auth.currentUser.email || '',
+                        name: '',
+                        company: '',
+                        bio: '',
+                        incubationStatus: STATUSES[0], // Set default status
+                        statusChangeRequested: false
+                    };
+                    document.getElementById('profile-email').value = profileData.email;
+                    document.getElementById('profile-name').value = '';
+                    document.getElementById('profile-company').value = '';
+                    document.getElementById('profile-bio').value = '';
+                    updateIncubationUI();
+                    setDoc(profileRef, { incubationStatus: STATUSES[0] }, { merge: true });
+                }
+            }, (error) => {
+                console.error("Error listening to profile:", error);
+                showAlert("Error fetching profile data.", true);
+            });
+        };
+        
+        const listenToReports = (userId) => {
+             if (!userId) return;
+             const reportsRef = getReportsCollectionRef(userId);
+             
+             // Use query to fetch and sort documents (sorting in-memory for safety)
+             const q = query(reportsRef);
+
+             onSnapshot(q, async (snapshot) => {
+                let reports = [];
+                snapshot.forEach(doc => {
+                    reports.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort the data in memory by submission date descending
+                reports.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+                renderReports(reports);
+             }, (error) => {
+                console.error("Error listening to reports:", error);
+                showAlert("Error fetching progress reports.", true);
+             });
+        };
+
+
+        // --- Authentication & Profile Handlers ---
+
+        const handleAuthStateChange = (user) => {
+            const authStatusEl = document.getElementById('auth-status');
+            const authButtonEl = document.getElementById('auth-button');
+            const userIdEl = document.getElementById('current-user-id');
+            
+            if (user) {
+                currentUserId = user.uid;
+                authStatusEl.textContent = `Signed In: ${user.isAnonymous ? 'Guest' : user.email || 'Token User'}`;
+                authButtonEl.textContent = 'Sign Out';
+                authButtonEl.onclick = handleSignOut;
+                userIdEl.textContent = currentUserId;
+                authStatusEl.classList.remove('hidden');
+                
+                listenToProfile(currentUserId);
+                listenToReports(currentUserId);
+            } else {
+                currentUserId = null;
+                authStatusEl.textContent = 'Signed Out';
+                authButtonEl.textContent = 'Sign In';
+                authButtonEl.onclick = openAuthModal;
+                userIdEl.textContent = '...Not Authenticated...';
+                document.getElementById('current-incubation-status').textContent = 'Please Sign In';
+            }
+        };
+
+        const handleSignOut = async () => {
+             try {
+                await signOut(auth);
+                showAlert("You have been signed out.", false);
+             } catch (error) {
+                console.error("Error during sign out:", error);
+                showAlert("Sign out failed.", true);
+             }
+        };
+        
+        const handleAuthFormSubmit = async (e) => {
+            e.preventDefault();
+            const authModal = document.getElementById('auth-modal');
+            const newEmail = document.getElementById('auth-email').value.trim();
+            const newName = document.getElementById('auth-name').value.trim();
+
+            if (!currentUserId) {
+                 showAlert("Authentication failed. Cannot register/sign in.", true);
+                 return;
+            }
+
+            const updatedProfile = {
+                email: newEmail,
+                name: newName,
+                // Preserve existing company/bio/status if they exist
+                company: profileData.company || '', 
+                bio: profileData.bio || '',
+                incubationStatus: profileData.incubationStatus || STATUSES[0],
+                updatedAt: new Date().toISOString()
+            };
+            
+            try {
+                await setDoc(getProfileDocRef(currentUserId), updatedProfile, { merge: true });
+                authModal.style.display = 'none';
+                showAlert(`Welcome, ${newName}! Profile updated.`, false);
+            } catch (error) {
+                console.error("Error updating profile during 'sign in': ", error);
+                showAlert("Failed to update profile. Try again.", true);
+            }
+        };
+        
+        const handleSaveProfile = async (e) => {
+            e.preventDefault();
+            if (!currentUserId) {
+                showAlert("Authentication required. Please 'Sign In' first.", true);
+                return;
+            }
+
+            const profileName = document.getElementById('profile-name').value.trim();
+            const profileCompany = document.getElementById('profile-company').value.trim();
+            const profileBio = document.getElementById('profile-bio').value.trim();
+            
+            if (!profileName || !profileCompany) {
+                showAlert("Founder Name and Startup Name are required.", true);
+                return;
+            }
+            
+            const newProfileUpdates = {
+                name: profileName,
+                company: profileCompany,
+                bio: profileBio,
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                await setDoc(getProfileDocRef(currentUserId), newProfileUpdates, { merge: true });
+                showAlert("Profile saved successfully!", false);
+            } catch (error) {
+                console.error("Error saving document: ", error);
+                showAlert("Failed to save profile.", true);
+            }
+        };
+        
+        // --- Incubation Logic Handlers ---
+        
+        const handleSubmitReport = async (e) => {
+            e.preventDefault();
+            if (!currentUserId) {
+                showAlert("Please sign in to submit a report.", true);
+                return;
+            }
+            
+            const period = document.getElementById('report-period').value.trim();
+            const summary = document.getElementById('report-summary').value.trim();
+            const milestones = document.getElementById('report-milestones').value.trim();
+            const challenges = document.getElementById('report-challenges').value.trim();
+
+            if (!period || !summary || !milestones) {
+                showAlert("Reporting Period, Summary, and Milestones are required fields.", true);
+                return;
+            }
+            
+            const reportData = {
+                period: period,
+                summary: summary,
+                milestonesAchieved: milestones,
+                challenges: challenges,
+                currentStatus: profileData.incubationStatus || STATUSES[0],
+                submittedAt: new Date().toISOString()
+            };
+
+            try {
+                await addDoc(getReportsCollectionRef(currentUserId), reportData);
+                document.getElementById('progress-report-form').reset();
+                showAlert(`Progress Report for ${period} submitted successfully!`, false);
+            } catch (error) {
+                console.error("Error submitting report:", error);
+                showAlert("Failed to submit report. Please try again.", true);
+            }
+        };
+
+        const handleRequestLevelUp = async () => {
+             if (!currentUserId) return showAlert("Please sign in first.", true);
+             if (profileData.incubationStatus === 'Alumni') return showAlert("You have already reached Alumni status.", false);
+             if (profileData.statusChangeRequested) return showAlert("Level up request is already pending review.", true);
+             
+             try {
+                await setDoc(getProfileDocRef(currentUserId), { statusChangeRequested: true, updatedAt: new Date().toISOString() }, { merge: true });
+                showAlert(`Request sent! Admin will review your progress for advancement to ${NEXT_STATUS_MAP[profileData.incubationStatus]}.`, false);
+             } catch (error) {
+                console.error("Error requesting level up:", error);
+                showAlert("Failed to request level up.", true);
+             }
+        };
+
+        // Simulated Admin Function
+        const handleAdminApproval = async () => {
+             if (!currentUserId) return showAlert("No user signed in.", true);
+             if (!profileData.statusChangeRequested) return showAlert("No level up request is pending.", true);
+             
+             const currentStatus = profileData.incubationStatus;
+             const nextStatus = NEXT_STATUS_MAP[currentStatus];
+
+             if (nextStatus === 'Alumni') {
+                 showAlert("Cannot approve: User is already at or past the final defined level.", true);
+                 return;
+             }
+             
+             try {
+                await setDoc(getProfileDocRef(currentUserId), { 
+                    incubationStatus: nextStatus,
+                    statusChangeRequested: false, // Clear the request flag
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                showAlert(`ADMIN APPROVAL: Incubate has been moved from ${currentStatus} to ${nextStatus}!`, false);
+             } catch (error) {
+                console.error("Admin approval failed:", error);
+                showAlert("Admin approval failed.", true);
+             }
+        };
+
+
+        // --- Initialization ---
+
+        const initializeFirebase = async () => {
+            if (Object.keys(firebaseConfig).length === 0) {
+                 console.error("Firebase config not available. Cannot initialize.");
+                 showAlert("Application Error: Firebase configuration missing.", true);
+                 return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, handleAuthStateChange);
+
+            } catch (error) {
+                console.error("Firebase initialization or authentication failed:", error);
+                showAlert("Authentication failed upon startup.", true);
+            }
+        };
+
+        // --- DOM Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Smooth scrolling for navigation
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault(); 
+                    const targetId = this.getAttribute('href');
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {
+                        targetElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+
+            // Form Submissions
+            document.getElementById('profile-form').addEventListener('submit', handleSaveProfile);
+            document.getElementById('auth-form').addEventListener('submit', handleAuthFormSubmit);
+            document.getElementById('progress-report-form').addEventListener('submit', handleSubmitReport);
+            document.getElementById('request-level-up-btn').addEventListener('click', handleRequestLevelUp);
+            document.getElementById('admin-approve-btn').addEventListener('click', handleAdminApproval); // Admin simulation
+
+            // Application and Contact forms (Placeholders)
+            document.getElementById('application-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const company = document.getElementById('app-company').value;
+                if (!currentUserId || !profileData.name) {
+                    showAlert("Please sign in and complete your profile before applying.", true);
+                    return;
+                }
+                const appId = 'INCUB-' + Math.floor(Math.random() * 9000 + 1000);
+                showAlert(`Application for ${company} received! ID: ${appId}.`, false);
+                document.getElementById('application-form').reset();
+            });
+
+            document.getElementById('contact-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const cName = document.getElementById('c-name').value;
+                showAlert(`Message sent! Thank you, ${cName}.`, false);
+                document.getElementById('contact-form').reset();
+            });
+
+            // Application Status Tracker Placeholder (Same logic as before)
+            document.getElementById('track-status-btn').addEventListener('click', () => {
+                const appIdInput = document.getElementById('app-id');
+                const statusResult = document.getElementById('status-result');
+                const appId = appIdInput.value.trim().toUpperCase();
+                
+                if (!appId.startsWith('INCUB-') || appId.length !== 10) {
+                    showAlert(`Error: Invalid ID format. Must be INCUB-XXXX.`, true);
+                    statusResult.classList.add('hidden');
+                    return;
+                } 
+                
+                const number = parseInt(appId.split('-')[1]);
+                let statusText = '';
+                let colorClass = 'text-linkedin-blue';
+
+                if (number % 3 === 0) {
+                    statusText = 'Under Review - Our team is assessing your proposal.';
+                } else if (number % 3 === 1) {
+                    statusText = 'Interview Stage - Please check your email for scheduling.';
+                    colorClass = 'text-green-600';
+                } else {
+                    statusText = 'Processing Offer - Finalizing details for acceptance.';
+                    colorClass = 'text-yellow-600';
+                }
+
+                statusResult.innerHTML = `<p class="text-primary-dark">ID: <b>${appId}</b></p><p class="mt-1 ${colorClass} font-extrabold">Status: ${statusText}</p>`;
+                statusResult.classList.remove('hidden');
+            });
+            
+            // Start Firebase initialization
+            initializeFirebase();
+        });
+    </script>

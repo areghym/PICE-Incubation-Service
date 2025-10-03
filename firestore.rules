@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  // Define a match for all documents in the database
+  match /databases/{database}/documents {
+
+    // 1. Match the root application path structure
+    match /artifacts/{appId} {
+
+      // 2. Rules for Private User Data (Profiles and Reports)
+      // This path ensures that data is only accessible to the authenticated user (userId == request.auth.uid)
+      match /users/{userId} {
+
+        // --- Profile Document (myProfile) ---
+        // Each user has a single profile document used for status tracking.
+        match /profiles/myProfile {
+          // Allow read access only if the authenticated user's ID matches the path's userId
+          allow read: if request.auth.uid == userId;
+          
+          // Allow creation (if profile doesn't exist) and updates only if the user owns the path
+          allow write: if request.auth.uid == userId;
+          
+          // Optional: Data validation check on updates (e.g., status must be one of the defined values)
+          allow update: if request.auth.uid == userId 
+                        && request.resource.data.incubationStatus in ['Pre-incubation', 'Incubation', 'Post-incubation', 'Alumni'];
+        }
+        
+        // --- Progress Reports Collection ---
+        // Documents in this collection store user-submitted reports.
+        match /progressReports/{reportId} {
+          // Allow read access to all reports within the user's collection
+          allow read: if request.auth.uid == userId;
+          
+          // Allow only 'create' (addDoc) to submit new reports. Reports are immutable after creation.
+          allow create: if request.auth.uid == userId;
+          
+          // Explicitly deny updates or deletions to maintain a historical record of submissions
+          allow update, delete: if false; 
+        }
+      }
+    }
+
+    // --- Public Data (Placeholder for potential shared data) ---
+    // If you introduce shared data (e.g., program details visible to everyone),
+    // you would add a rule here:
+    /*
+    match /artifacts/{appId}/public/data/{collection}/{document} {
+      allow read; // Everyone can read public data
+      // deny write by default, or limit writes to specific administrative roles
+    }
+    */
+  }
+}
