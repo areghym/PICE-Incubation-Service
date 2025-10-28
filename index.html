@@ -1,3 +1,613 @@
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+        getAuth, 
+        signInAnonymously, 
+        signInWithCustomToken, 
+        onAuthStateChanged, 
+        signOut 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+        getFirestore, 
+        doc, 
+        setDoc, 
+        getDoc,
+        onSnapshot,
+        collection,
+        addDoc,
+        query,
+        orderBy,
+        getDocs,
+        updateDoc,
+        serverTimestamp,
+        setLogLevel
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { 
+        getStorage, 
+        ref, 
+        uploadBytes, 
+        getDownloadURL 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+    // Set Firebase Log Level
+    setLogLevel('debug');
+
+    // Firebase Configuration (You'll need to replace this with your actual config)
+    const firebaseConfig = {
+        apiKey: "your-api-key",
+        authDomain: "your-project.firebaseapp.com",
+        projectId: "your-project-id",
+        storageBucket: "your-project.appspot.com",
+        messagingSenderId: "123456789",
+        appId: "your-app-id"
+    };
+    
+    let app, db, auth, storage;
+    let currentUserId = null;
+    let profileData = {};
+
+    // Define Incubation Statuses
+    const STATUSES = ["Pre-incubation", "Incubation", "Post-incubation", "Alumni"];
+    const NEXT_STATUS_MAP = {
+        "Pre-incubation": "Incubation",
+        "Incubation": "Post-incubation",
+        "Post-incubation": "Alumni",
+        "Alumni": "Alumni"
+    };
+
+    // --- Utility Functions ---
+    const messageBox = document.getElementById('message-box');
+    const messageText = document.getElementById('message-text');
+
+    const showAlert = (message, isError = false) => {
+        messageText.textContent = message;
+        messageBox.classList.remove('opacity-0', 'pointer-events-none', 'bg-red-600', 'bg-green-600');
+        messageBox.classList.add('opacity-100');
+        
+        if (isError) {
+            messageBox.classList.add('bg-red-600');
+            messageBox.classList.remove('bg-green-600');
+        } else {
+            messageBox.classList.add('bg-green-600');
+            messageBox.classList.remove('bg-red-600');
+        }
+
+        setTimeout(() => {
+            messageBox.classList.remove('opacity-100');
+            messageBox.classList.add('opacity-0', 'pointer-events-none');
+        }, 5000);
+    };
+    window.showAlert = showAlert;
+
+    window.openAuthModal = () => {
+        if (currentUserId && !auth.currentUser.isAnonymous) {
+            handleSignOut();
+        } else {
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+    };
+
+    // --- Database Document References ---
+    const getProfileDocRef = (userId) => {
+        return doc(db, 'users', userId, 'profile', 'data');
+    };
+    
+    const getApplicationsCollectionRef = (userId) => {
+        return collection(db, 'users', userId, 'applications');
+    };
+    
+    const getReportsCollectionRef = (userId) => {
+        return collection(db, 'users', userId, 'progressReports');
+    };
+    
+    const getContactsCollectionRef = () => {
+        return collection(db, 'contactSubmissions');
+    };
+
+    const getAllApplicationsRef = () => {
+        return collection(db, 'allApplications');
+    };
+
+    // --- UI Update Functions ---
+    const updateIncubationUI = () => {
+        const statusEl = document.getElementById('current-incubation-status');
+        const requestBtn = document.getElementById('request-level-up-btn');
+        const nextStatusTextEl = document.getElementById('next-status-text');
+        const pendingTextEl = document.getElementById('request-pending-text');
+        const adminBtn = document.getElementById('admin-approve-btn');
+
+        const currentStatus = profileData.incubationStatus || STATUSES[0];
+        const nextStatus = NEXT_STATUS_MAP[currentStatus];
+        const isRequestPending = profileData.statusChangeRequested || false;
+
+        statusEl.textContent = currentStatus;
+        
+        if (currentStatus === 'Alumni') {
+            requestBtn.classList.add('hidden');
+            pendingTextEl.textContent = 'Congratulations, you are Alumni!';
+            pendingTextEl.classList.remove('hidden', 'text-orange-500');
+            pendingTextEl.classList.add('text-green-600');
+            adminBtn.classList.add('hidden');
+        } else {
+            nextStatusTextEl.textContent = nextStatus;
+            
+            if (isRequestPending) {
+                requestBtn.classList.add('hidden');
+                pendingTextEl.classList.remove('hidden');
+                adminBtn.classList.remove('hidden');
+            } else {
+                requestBtn.classList.remove('hidden');
+                pendingTextEl.classList.add('hidden');
+                adminBtn.classList.add('hidden');
+            }
+        }
+    };
+    
+    const renderReports = (reports) => {
+        const reportsListEl = document.getElementById('reports-list');
+        reportsListEl.innerHTML = '';
+
+        if (reports.length === 0) {
+            reportsListEl.innerHTML = '<p class="text-center italic text-gray-500">No reports found for this user. Submit your first one!</p>';
+            return;
+        }
+        
+        reports.forEach(report => {
+            const date = new Date(report.submittedAt?.toDate?.() || report.submittedAt).toLocaleDateString();
+            const reportDiv = document.createElement('div');
+            reportDiv.className = 'p-4 bg-white rounded-xl shadow-sm border-l-4 border-primary-dark';
+            reportDiv.innerHTML = `
+                <h4 class="font-bold text-lg text-primary-dark">${report.period} Report</h4>
+                <p class="text-sm text-gray-500 mb-2">Submitted: ${date} | Status: <span class="font-semibold text-linkedin-blue">${report.currentStatus}</span></p>
+                <p class="text-sm"><strong>Summary:</strong> ${report.summary}</p>
+                <p class="text-sm"><strong>Milestones:</strong> ${report.milestonesAchieved}</p>
+                ${report.challenges ? `<p class="text-sm"><strong>Challenges:</strong> ${report.challenges}</p>` : ''}
+            `;
+            reportsListEl.appendChild(reportDiv);
+        });
+    };
+
+    // --- Real-time Database Listeners ---
+    const listenToProfile = (userId) => {
+        if (!userId) return;
+        const profileRef = getProfileDocRef(userId);
+
+        onSnapshot(profileRef, (docSnap) => {
+            if (docSnap.exists()) {
+                profileData = docSnap.data();
+                
+                // Set default status if missing
+                if (!profileData.incubationStatus) {
+                    profileData.incubationStatus = STATUSES[0];
+                    setDoc(profileRef, { incubationStatus: STATUSES[0] }, { merge: true });
+                }
+                
+                document.getElementById('profile-email').value = profileData.email || auth.currentUser.email || '';
+                document.getElementById('profile-name').value = profileData.name || '';
+                document.getElementById('profile-company').value = profileData.company || '';
+                document.getElementById('profile-bio').value = profileData.bio || '';
+                
+                updateIncubationUI();
+                showAlert("Profile and Incubation Status loaded.", false);
+            } else {
+                // Initialize profile document
+                profileData = {
+                    email: auth.currentUser.email || '',
+                    name: '',
+                    company: '',
+                    bio: '',
+                    incubationStatus: STATUSES[0],
+                    statusChangeRequested: false,
+                    createdAt: serverTimestamp()
+                };
+                document.getElementById('profile-email').value = profileData.email;
+                document.getElementById('profile-name').value = '';
+                document.getElementById('profile-company').value = '';
+                document.getElementById('profile-bio').value = '';
+                updateIncubationUI();
+                setDoc(profileRef, profileData, { merge: true });
+            }
+        }, (error) => {
+            console.error("Error listening to profile:", error);
+            showAlert("Error fetching profile data.", true);
+        });
+    };
+    
+    const listenToReports = (userId) => {
+        if (!userId) return;
+        const reportsRef = getReportsCollectionRef(userId);
+        const q = query(reportsRef, orderBy('submittedAt', 'desc'));
+
+        onSnapshot(q, (snapshot) => {
+            let reports = [];
+            snapshot.forEach(doc => {
+                reports.push({ id: doc.id, ...doc.data() });
+            });
+            renderReports(reports);
+        }, (error) => {
+            console.error("Error listening to reports:", error);
+            showAlert("Error fetching progress reports.", true);
+        });
+    };
+
+    // --- Authentication & Profile Handlers ---
+    const handleAuthStateChange = (user) => {
+        const authStatusEl = document.getElementById('auth-status');
+        const authButtonEl = document.getElementById('auth-button');
+        const userIdEl = document.getElementById('current-user-id');
+        
+        if (user) {
+            currentUserId = user.uid;
+            authStatusEl.textContent = `Signed In: ${user.isAnonymous ? 'Guest' : user.email || 'User'}`;
+            authButtonEl.textContent = 'Sign Out';
+            authButtonEl.onclick = handleSignOut;
+            userIdEl.textContent = currentUserId;
+            authStatusEl.classList.remove('hidden');
+            
+            listenToProfile(currentUserId);
+            listenToReports(currentUserId);
+        } else {
+            currentUserId = null;
+            authStatusEl.textContent = 'Signed Out';
+            authButtonEl.textContent = 'Sign In';
+            authButtonEl.onclick = openAuthModal;
+            userIdEl.textContent = '...Not Authenticated...';
+            document.getElementById('current-incubation-status').textContent = 'Please Sign In';
+        }
+    };
+
+    const handleSignOut = async () => {
+        try {
+            await signOut(auth);
+            showAlert("You have been signed out.", false);
+        } catch (error) {
+            console.error("Error during sign out:", error);
+            showAlert("Sign out failed.", true);
+        }
+    };
+    
+    const handleAuthFormSubmit = async (e) => {
+        e.preventDefault();
+        const authModal = document.getElementById('auth-modal');
+        const newEmail = document.getElementById('auth-email').value.trim();
+        const newName = document.getElementById('auth-name').value.trim();
+
+        if (!newEmail || !newName) {
+            showAlert("Please fill in both email and name fields.", true);
+            return;
+        }
+
+        if (!currentUserId) {
+            showAlert("Authentication failed. Cannot register/sign in.", true);
+            return;
+        }
+
+        const updatedProfile = {
+            email: newEmail,
+            name: newName,
+            company: profileData.company || '', 
+            bio: profileData.bio || '',
+            incubationStatus: profileData.incubationStatus || STATUSES[0],
+            updatedAt: serverTimestamp()
+        };
+        
+        try {
+            await setDoc(getProfileDocRef(currentUserId), updatedProfile, { merge: true });
+            authModal.style.display = 'none';
+            showAlert(`Welcome, ${newName}! Profile updated.`, false);
+        } catch (error) {
+            console.error("Error updating profile during 'sign in': ", error);
+            showAlert("Failed to update profile. Try again.", true);
+        }
+    };
+    
+    const handleSaveProfile = async (e) => {
+        e.preventDefault();
+        if (!currentUserId) {
+            showAlert("Authentication required. Please 'Sign In' first.", true);
+            return;
+        }
+
+        const profileName = document.getElementById('profile-name').value.trim();
+        const profileCompany = document.getElementById('profile-company').value.trim();
+        const profileBio = document.getElementById('profile-bio').value.trim();
+        
+        if (!profileName || !profileCompany) {
+            showAlert("Founder Name and Startup Name are required.", true);
+            return;
+        }
+        
+        const newProfileUpdates = {
+            name: profileName,
+            company: profileCompany,
+            bio: profileBio,
+            updatedAt: serverTimestamp()
+        };
+
+        try {
+            await setDoc(getProfileDocRef(currentUserId), newProfileUpdates, { merge: true });
+            showAlert("Profile saved successfully!", false);
+        } catch (error) {
+            console.error("Error saving document: ", error);
+            showAlert("Failed to save profile.", true);
+        }
+    };
+    
+    // --- Application Submission with File Upload ---
+    const handleApplicationSubmit = async (e) => {
+        e.preventDefault();
+        if (!currentUserId || !profileData.name) {
+            showAlert("Please sign in and complete your profile before applying.", true);
+            return;
+        }
+
+        const company = document.getElementById('app-company').value.trim();
+        const businessPlanFile = document.getElementById('app-plan').files[0];
+
+        if (!company || !businessPlanFile) {
+            showAlert("Please fill in startup name and upload business plan.", true);
+            return;
+        }
+
+        // Validate file type and size
+        const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!validTypes.includes(businessPlanFile.type)) {
+            showAlert("Please upload a PDF or DOCX file.", true);
+            return;
+        }
+
+        if (businessPlanFile.size > 5 * 1024 * 1024) { // 5MB
+            showAlert("File size must be less than 5MB.", true);
+            return;
+        }
+
+        try {
+            // Generate unique application ID
+            const appId = 'INCUB-' + Date.now();
+            
+            // Upload business plan to storage
+            const storageRef = ref(storage, `businessPlans/${currentUserId}/${appId}_${businessPlanFile.name}`);
+            const snapshot = await uploadBytes(storageRef, businessPlanFile);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+
+            // Save application data to Firestore
+            const applicationData = {
+                appId: appId,
+                company: company,
+                founderName: profileData.name,
+                founderEmail: profileData.email,
+                businessPlanURL: downloadURL,
+                status: 'submitted',
+                submittedAt: serverTimestamp(),
+                userId: currentUserId
+            };
+
+            // Save to user's applications collection
+            await addDoc(getApplicationsCollectionRef(currentUserId), applicationData);
+            
+            // Also save to global applications collection for admin view
+            await addDoc(getAllApplicationsRef(), applicationData);
+
+            showAlert(`Application for ${company} submitted successfully! Your Application ID: ${appId}`, false);
+            document.getElementById('application-form').reset();
+
+        } catch (error) {
+            console.error("Error submitting application:", error);
+            showAlert("Failed to submit application. Please try again.", true);
+        }
+    };
+
+    // --- Progress Report Handler ---
+    const handleSubmitReport = async (e) => {
+        e.preventDefault();
+        if (!currentUserId) {
+            showAlert("Please sign in to submit a report.", true);
+            return;
+        }
+        
+        const period = document.getElementById('report-period').value.trim();
+        const summary = document.getElementById('report-summary').value.trim();
+        const milestones = document.getElementById('report-milestones').value.trim();
+        const challenges = document.getElementById('report-challenges').value.trim();
+
+        if (!period || !summary || !milestones) {
+            showAlert("Reporting Period, Summary, and Milestones are required fields.", true);
+            return;
+        }
+        
+        const reportData = {
+            period: period,
+            summary: summary,
+            milestonesAchieved: milestones,
+            challenges: challenges,
+            currentStatus: profileData.incubationStatus || STATUSES[0],
+            submittedAt: serverTimestamp(),
+            userId: currentUserId
+        };
+
+        try {
+            await addDoc(getReportsCollectionRef(currentUserId), reportData);
+            document.getElementById('progress-report-form').reset();
+            showAlert(`Progress Report for ${period} submitted successfully!`, false);
+        } catch (error) {
+            console.error("Error submitting report:", error);
+            showAlert("Failed to submit report. Please try again.", true);
+        }
+    };
+
+    // --- Contact Form Handler ---
+    const handleContactSubmit = async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('c-name').value.trim();
+        const email = document.getElementById('c-email').value.trim();
+        const message = document.getElementById('c-message').value.trim();
+
+        if (!name || !email || !message) {
+            showAlert("Please fill in all contact form fields.", true);
+            return;
+        }
+
+        const contactData = {
+            name: name,
+            email: email,
+            message: message,
+            submittedAt: serverTimestamp(),
+            userId: currentUserId || 'anonymous'
+        };
+
+        try {
+            await addDoc(getContactsCollectionRef(), contactData);
+            showAlert(`Message sent! Thank you, ${name}. We'll get back to you soon.`, false);
+            document.getElementById('contact-form').reset();
+        } catch (error) {
+            console.error("Error submitting contact form:", error);
+            showAlert("Failed to send message. Please try again.", true);
+        }
+    };
+
+    // --- Incubation Level Up Request ---
+    const handleRequestLevelUp = async () => {
+        if (!currentUserId) return showAlert("Please sign in first.", true);
+        if (profileData.incubationStatus === 'Alumni') return showAlert("You have already reached Alumni status.", false);
+        if (profileData.statusChangeRequested) return showAlert("Level up request is already pending review.", true);
+        
+        try {
+            await setDoc(getProfileDocRef(currentUserId), { 
+                statusChangeRequested: true, 
+                levelUpRequestedAt: serverTimestamp(),
+                updatedAt: serverTimestamp() 
+            }, { merge: true });
+            showAlert(`Request sent! Admin will review your progress for advancement to ${NEXT_STATUS_MAP[profileData.incubationStatus]}.`, false);
+        } catch (error) {
+            console.error("Error requesting level up:", error);
+            showAlert("Failed to request level up.", true);
+        }
+    };
+
+    // Simulated Admin Function
+    const handleAdminApproval = async () => {
+        if (!currentUserId) return showAlert("No user signed in.", true);
+        if (!profileData.statusChangeRequested) return showAlert("No level up request is pending.", true);
+        
+        const currentStatus = profileData.incubationStatus;
+        const nextStatus = NEXT_STATUS_MAP[currentStatus];
+
+        if (nextStatus === 'Alumni') {
+            showAlert("Cannot approve: User is already at or past the final defined level.", true);
+            return;
+        }
+        
+        try {
+            await setDoc(getProfileDocRef(currentUserId), { 
+                incubationStatus: nextStatus,
+                statusChangeRequested: false,
+                previousStatus: currentStatus,
+                statusUpdatedAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            showAlert(`ADMIN APPROVAL: Incubate has been moved from ${currentStatus} to ${nextStatus}!`, false);
+        } catch (error) {
+            console.error("Admin approval failed:", error);
+            showAlert("Admin approval failed.", true);
+        }
+    };
+
+    // --- Application Status Tracking ---
+    const handleTrackApplicationStatus = async () => {
+        const appIdInput = document.getElementById('app-id');
+        const statusResult = document.getElementById('status-result');
+        const appId = appIdInput.value.trim().toUpperCase();
+        
+        if (!appId.startsWith('INCUB-')) {
+            showAlert(`Error: Invalid ID format. Must start with INCUB-`, true);
+            statusResult.classList.add('hidden');
+            return;
+        } 
+        
+        try {
+            // In a real implementation, you would query the database
+            // For now, we'll simulate status based on the ID
+            const number = parseInt(appId.split('-')[1]) || 0;
+            let statusText = '';
+            let colorClass = 'text-linkedin-blue';
+
+            if (number % 4 === 0) {
+                statusText = 'Under Review - Our team is assessing your proposal.';
+            } else if (number % 4 === 1) {
+                statusText = 'Interview Stage - Please check your email for scheduling.';
+                colorClass = 'text-green-600';
+            } else if (number % 4 === 2) {
+                statusText = 'Processing Offer - Finalizing details for acceptance.';
+                colorClass = 'text-yellow-600';
+            } else {
+                statusText = 'Accepted - Welcome to our incubation program!';
+                colorClass = 'text-purple-600';
+            }
+
+            statusResult.innerHTML = `
+                <p class="text-primary-dark">ID: <b>${appId}</b></p>
+                <p class="mt-1 ${colorClass} font-extrabold">Status: ${statusText}</p>
+                <p class="text-sm text-gray-600 mt-2">Last updated: ${new Date().toLocaleDateString()}</p>
+            `;
+            statusResult.classList.remove('hidden');
+        } catch (error) {
+            console.error("Error tracking application:", error);
+            showAlert("Error tracking application status.", true);
+        }
+    };
+
+    // --- Firebase Initialization ---
+    const initializeFirebase = async () => {
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            storage = getStorage(app);
+
+            // Sign in anonymously for demo purposes
+            await signInAnonymously(auth);
+            
+            onAuthStateChanged(auth, handleAuthStateChange);
+
+        } catch (error) {
+            console.error("Firebase initialization failed:", error);
+            showAlert("Application initialization failed. Please refresh the page.", true);
+        }
+    };
+
+    // --- DOM Event Listeners ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Smooth scrolling for navigation
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault(); 
+                const targetId = this.getAttribute('href');
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Form Submissions
+        document.getElementById('profile-form').addEventListener('submit', handleSaveProfile);
+        document.getElementById('auth-form').addEventListener('submit', handleAuthFormSubmit);
+        document.getElementById('progress-report-form').addEventListener('submit', handleSubmitReport);
+        document.getElementById('application-form').addEventListener('submit', handleApplicationSubmit);
+        document.getElementById('contact-form').addEventListener('submit', handleContactSubmit);
+        
+        // Button Event Listeners
+        document.getElementById('request-level-up-btn').addEventListener('click', handleRequestLevelUp);
+        document.getElementById('admin-approve-btn').addEventListener('click', handleAdminApproval);
+        document.getElementById('track-status-btn').addEventListener('click', handleTrackApplicationStatus);
+
+        // Start Firebase initialization
+        initializeFirebase();
+    });
+</script>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -846,3 +1456,4 @@
             initializeFirebase();
         });
     </script>
+
